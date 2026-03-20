@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusCircle, MessageSquare } from 'lucide-react';
+import { PlusCircle, MessageSquare, Trash2 } from 'lucide-react';
 
 interface Chat {
   id: string;
@@ -11,11 +11,12 @@ interface SidebarProps {
   activeChatId: string | null;
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
+  onDeleteChat: (id: string) => void;
 }
 
-export function Sidebar({ chats, activeChatId, onSelectChat, onNewChat }: SidebarProps) {
+export function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat }: SidebarProps) {
   return (
-    <div className="w-64 h-full bg-pastelBlue bg-opacity-30 border-r border-pastelBlue/50 flex flex-col">
+    <div className="w-64 h-full bg-pastelBlue bg-opacity-30 border-r border-pastelBlue/50 flex flex-col z-20">
       <div className="p-4 border-b border-pastelBlue/50">
         <button
           onClick={onNewChat}
@@ -32,18 +33,30 @@ export function Sidebar({ chats, activeChatId, onSelectChat, onNewChat }: Sideba
           <p className="text-sm text-slate-400 italic">No trips planned yet.</p>
         ) : (
           chats.map((chat) => (
-            <button
-              key={chat.id}
-              onClick={() => onSelectChat(chat.id)}
-              className={`flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl transition-all duration-200 ${
+            <div 
+              key={chat.id} 
+              className={`group flex items-center justify-between gap-2 w-full px-3 py-3 rounded-xl transition-all duration-200 cursor-pointer ${
                 activeChatId === chat.id 
                   ? 'bg-white shadow-sm border border-pastelBlue text-slate-800 font-medium' 
                   : 'hover:bg-white/50 text-slate-600'
               }`}
+              onClick={() => onSelectChat(chat.id)}
             >
-              <MessageSquare size={16} className={activeChatId === chat.id ? 'text-blue-500' : 'text-slate-400'} />
-              <span className="truncate text-sm">{chat.title}</span>
-            </button>
+              <div className="flex items-center gap-3 overflow-hidden">
+                 <MessageSquare size={16} className={`flex-shrink-0 ${activeChatId === chat.id ? 'text-blue-500' : 'text-slate-400'}`} />
+                 <span className="truncate text-sm">{chat.title}</span>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteChat(chat.id);
+                }}
+                className={`p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors ${activeChatId === chat.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                title="Delete Trip"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           ))
         )}
       </div>

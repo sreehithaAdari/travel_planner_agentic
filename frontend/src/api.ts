@@ -25,8 +25,16 @@ export const TravelAPI = {
     const response = await api.post('/generate-itinerary', data);
     return response.data;
   },
+  updateItinerary: async (chatId: string, data: TripRequest) => {
+    const response = await api.put(`/generate-itinerary/${chatId}`, data);
+    return response.data;
+  },
   getChats: async () => {
     const response = await api.get('/chats');
+    return response.data;
+  },
+  deleteChat: async (chatId: string) => {
+    const response = await api.delete(`/chat/${chatId}`);
     return response.data;
   },
   getChatDetails: async (chatId: string) => {

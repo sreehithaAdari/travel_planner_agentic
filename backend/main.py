@@ -87,6 +87,70 @@ async def generate_itinerary(request: TripRequest, db: Session = Depends(get_db)
         "estimated_cost": estimated_cost
     }
 
+@app.put("/api/v1/generate-itinerary/{chat_id}")
+async def update_itinerary(chat_id: str, request: TripRequest, db: Session = Depends(get_db)):
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+        
+    itinerary_data = db.query(ItineraryData).filter(ItineraryData.chat_id == chat_id).first()
+    if not itinerary_data:
+        raise HTTPException(status_code=404, detail="Itinerary not found")
+        
+    initial_state = {
+        "destination": request.destination,
+        "days": request.days,
+        "people": request.people,
+        "adults": request.adults,
+        "children": request.children,
+        "budget": request.budget,
+        "currency": request.currency,
+        "travel_type": request.travel_type
+    }
+    
+    # Run LangGraph workflow
+    final_state = graph_app.invoke(initial_state)
+    
+    budget_sufficient = final_state.get('budget_sufficient', False)
+    estimated_cost = final_state.get('estimated_cost', 0.0)
+    final_itinerary = final_state.get('final_itinerary', "")
+    
+    # Update Itinerary Data
+    itinerary_data.destination = request.destination
+    itinerary_data.days = request.days
+    itinerary_data.people = request.people
+    itinerary_data.adults = request.adults
+    itinerary_data.children = request.children
+    itinerary_data.budget = request.budget
+    itinerary_data.currency = request.currency
+    itinerary_data.travel_type = request.travel_type
+    itinerary_data.budget_sufficient = budget_sufficient
+    itinerary_data.estimated_cost = estimated_cost
+    itinerary_data.final_itinerary = final_itinerary
+    
+    # Update Chat Title
+    chat.title = f"{request.days}-Day Trip to {request.destination}"
+    
+    # Delete old messages
+    db.query(Message).filter(Message.chat_id == chat_id).delete()
+    
+    # Add new welcome message
+    welcome_msg = Message(
+        chat_id=chat_id,
+        role="ai",
+        content=f"Here is your newly updated customized itinerary for {request.destination}!\n\n{final_itinerary}"
+    )
+    db.add(welcome_msg)
+    
+    db.commit()
+    
+    return {
+        "chat_id": chat_id,
+        "itinerary": final_itinerary,
+        "budget_sufficient": budget_sufficient,
+        "estimated_cost": estimated_cost
+    }
+
 @app.post("/api/v1/chat/{chat_id}")
 async def chat_interaction(chat_id: str, request: ChatMessageRequest, db: Session = Depends(get_db)):
     chat = db.query(Chat).filter(Chat.id == chat_id).first()
@@ -163,6 +227,22 @@ async def create_new_chat(db: Session = Depends(get_db)):
     db.add(new_chat)
     db.commit()
     return {"chat_id": new_chat_id, "message": "New chat created. Please generate an itinerary."}
+
+@app.delete("/api/v1/chat/{chat_id}")
+async def delete_chat(chat_id: str, db: Session = Depends(get_db)):
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+        
+    # Delete related messages and itinerary first to avoid foreign key constraints
+    db.query(Message).filter(Message.chat_id == chat_id).delete()
+    db.query(ItineraryData).filter(ItineraryData.chat_id == chat_id).delete()
+    
+    # Delete chat
+    db.delete(chat)
+    db.commit()
+    
+    return {"message": "Chat deleted successfully"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
