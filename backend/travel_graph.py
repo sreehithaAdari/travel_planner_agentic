@@ -3,29 +3,34 @@ from typing import Literal
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from travel_state import TravelState
 
 load_dotenv()
 
-# Initialize LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.7)
+# Initialize LLM with increased timeout and max_retries to prevent ReadTimeout
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash", 
+    temperature=0.7, 
+    timeout=120.0, 
+    max_retries=3
+)
 
 def user_preference(state: TravelState):
     """Agent 1: Processes user preferences and formats the initial request."""
-    return {"current_plan": f"Processing trip to {state['destination']} for {state['days']} days."}
+    return {"current_plan": f"Processing trip to {state['destination']} for {state['days']} days.", "messages": []}
 
 def budget_estimation(state: TravelState):
     """Agent 4: Estimates the budget required for the trip."""
     prompt = f"""
-    Estimate the total cost in USD for a trip with the following details:
+    Estimate the total cost in {state['currency']} for a trip with the following details:
     Destination: {state['destination']}
     Duration: {state['days']} days
     People: {state['people']} ({state['adults']} adults, {state['children']} children)
     Travel Type: {state['travel_type']}
     
-    Return ONLY a number representing the estimated cost in USD. No symbols or extra text.
+    Return ONLY a number representing the estimated cost in {state['currency']}. No symbols or extra text.
     """
     response = llm.invoke(prompt)
     try:
@@ -51,17 +56,25 @@ def luxury(state: TravelState):
 def budget_sufficient(state: TravelState):
     """Agent 5: Generates the full itinerary when budget is sufficient."""
     prompt = f"""
-    Generate a detailed {state['travel_type']} itinerary for a {state['days']}-day trip to {state['destination']}.
-    Budget: ${state['budget']} (Sufficient for {state['travel_type']})
+    Generate a highly structured and detailed {state['travel_type']} itinerary for a {state['days']}-day trip to {state['destination']}.
+    Budget: {state['budget']} {state['currency']} (Sufficient for {state['travel_type']})
     Travelers: {state['people']} ({state['adults']} adults, {state['children']} children)
     
-    Include:
-    - Where to stay
-    - What to eat
-    - Major places to visit
-    - Daily activities (specifically catering to children if there are any, else focus on adults).
+    Structure the response clearly:
     
-    Format the response clearly in Markdown.
+    ## Overview
+    Brief overview of the trip.
+    
+    ## Accommodation
+    Suggested places to stay that fit the {state['travel_type']} context.
+    
+    ## Food & Dining
+    Suggested restaurants or food experiences.
+    
+    ## Day-by-Day Itinerary
+    Provide a day-wise plan. If there are children, ensure activities cater to them.
+    
+    Format nicely in markdown. Do not include introductory or closing remarks outside the requested sections.
     """
     response = llm.invoke(prompt)
     return {"final_itinerary": response.content}
@@ -69,25 +82,32 @@ def budget_sufficient(state: TravelState):
 def budget_insufficient(state: TravelState):
     """Agent 6: Analyzes the shortfall and provides reasoning."""
     shortfall = state['estimated_cost'] - state['budget']
-    reason = f"Budget is insufficient for {state['travel_type']} travel to {state['destination']}. Estimated: ${state['estimated_cost']}, Provided: ${state['budget']}."
+    reason = f"Budget is insufficient for {state['travel_type']} travel to {state['destination']}. Estimated: {state['estimated_cost']} {state['currency']}, Provided: {state['budget']} {state['currency']}."
     return {"adjustments_made": reason}
 
 def adjust_plan(state: TravelState):
     """Agent 7: Generates a readjusted itinerary fitting the lower budget."""
     prompt = f"""
-    The user requested a {state['travel_type']} trip to {state['destination']} for {state['days']} days, but the budget (${state['budget']}) is insufficient (Estimated cost was ${state['estimated_cost']}).
+    The user requested a {state['travel_type']} trip to {state['destination']} for {state['days']} days, but the budget ({state['budget']} {state['currency']}) is insufficient (Estimated cost was {state['estimated_cost']} {state['currency']}).
     
-    Readjust the plan to fit the user's provided budget of ${state['budget']}.
+    Readjust the plan to fit the user's provided budget of {state['budget']} {state['currency']}.
     Travelers: {state['people']} ({state['adults']} adults, {state['children']} children).
     
-    Include:
-    - Explanation of budget adjustments (e.g., staying in cheaper hotels, eating at budget restaurants)
-    - Where to stay (budget-friendly options)
-    - What to eat (cheap eats)
-    - Major places to visit (free or low-cost activities)
-    - Daily activities (specifically catering to children if there are any).
+    Structure the response clearly:
     
-    Format the response clearly in Markdown.
+    ## Budget Adjustments
+    Explanation of how the budget was reduced (e.g., cheaper hotels, budget dining).
+    
+    ## Accommodation
+    Suggested budget-friendly places to stay.
+    
+    ## Food & Dining
+    Suggested cheap eats or self-catering options.
+    
+    ## Day-by-Day Itinerary
+    Provide a day-wise plan with free or low-cost activities. If there are children, ensure activities cater to them.
+    
+    Format nicely in markdown. Do not include introductory or closing remarks outside the requested sections.
     """
     response = llm.invoke(prompt)
     return {"final_itinerary": response.content}
@@ -122,3 +142,27 @@ workflow.add_edge("agent6", "agent7")
 workflow.add_edge("agent7", END)
 
 app = workflow.compile()
+
+def chat_agent(messages: list, itinerary: str, destination: str):
+    """Handles chat interaction scoped strictly to the itinerary."""
+    system_prompt = f"""
+    You are an expert travel assistant. The user has planned a trip to {destination}.
+    Here is their generated itinerary:
+    
+    {itinerary}
+    
+    Your rules:
+    1. Answer ONLY questions related to this trip, destination, and itinerary.
+    2. If the user asks about general knowledge, other countries, or unrelated topics, politely refuse and remind them you can only assist with their {destination} trip.
+    3. Keep responses concise, helpful, and formatted in markdown.
+    """
+    chat_history = [SystemMessage(content=system_prompt)]
+    
+    for msg in messages:
+        if msg["role"] == "user":
+            chat_history.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "ai":
+            chat_history.append(AIMessage(content=msg["content"]))
+            
+    response = llm.invoke(chat_history)
+    return response.content
