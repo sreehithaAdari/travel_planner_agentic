@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 langgraph
-langchain-google-genai
+langchain-ollama
 sqlalchemy
 pydantic
 pydantic-settings

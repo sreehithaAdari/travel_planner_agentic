@@ -11,16 +11,17 @@ interface TravelFormProps {
 }
 
 export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', onCancel }: TravelFormProps) {
-  const defaultState: TripRequest = {
+  // Allow for empty strings in the form state while typing
+  const defaultState = {
     destination: '',
-    days: 3,
-    people: 2,
-    adults: 2,
-    children: 0,
-    budget: 1000,
+    days: '' as unknown as number,
+    people: '' as unknown as number,
+    adults: '' as unknown as number,
+    children: '' as unknown as number,
+    budget: '' as unknown as number,
     currency: 'USD',
     travel_type: 'Luxury'
-  };
+  } as TripRequest;
 
   const [formData, setFormData] = useState<TripRequest>(initialData || defaultState);
   const [error, setError] = useState<string | null>(null);
@@ -35,10 +36,33 @@ export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: typeof prev[name as keyof TripRequest] === 'number' ? Number(value) : value
-    }));
+    setFormData(prev => {
+      // If the field is numerical, handle the empty string case so it doesn't default to 0
+      const isNumberField = ['days', 'adults', 'children', 'budget', 'people'].includes(name);
+      
+      let newValue: any = value;
+      if (isNumberField) {
+         newValue = value === '' ? '' : Number(value);
+      }
+
+      // Auto-calculate total people
+      let updatedPeople = prev.people;
+      if (name === 'adults' || name === 'children') {
+         const newAdults = name === 'adults' ? newValue : prev.adults;
+         const newChildren = name === 'children' ? newValue : prev.children;
+         
+         const a = newAdults === '' ? 0 : Number(newAdults);
+         const c = newChildren === '' ? 0 : Number(newChildren);
+         
+         updatedPeople = a + c;
+      }
+      
+      return {
+        ...prev,
+        [name]: newValue,
+        people: updatedPeople
+      };
+    });
   };
 
   const validate = async () => {
@@ -54,11 +78,8 @@ export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', 
       setError("Budget must be a positive integer");
       return false;
     }
-    if (formData.people !== formData.adults + formData.children) {
-      setError("People must equal adults + children");
-      return false;
-    }
-    if (formData.children > 0 && formData.adults < 1) {
+    // People is now auto-calculated, so we only need to ensure there is at least one adult
+    if (formData.adults < 1) {
       setError("At least one adult required");
       return false;
     }
@@ -118,16 +139,18 @@ export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', 
   const isButtonDisabled = isLoading || isValidating;
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white/70 backdrop-blur-md p-8 rounded-3xl shadow-xl border border-white mb-6 relative overflow-hidden">
+    <div className="w-full max-w-2xl mx-auto bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.06)] border border-borderLight p-8 md:p-10 w-full relative overflow-hidden">
+      {/* Background flare */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-lightBlue rounded-full mix-blend-multiply filter blur-[80px] opacity-40 pointer-events-none transform translate-x-1/2 -translate-y-1/2"></div>
       
-      {/* Confirmation Modal Overlay */}
       {confirmMode && (
-        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center p-8 text-center animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-100 shadow-2xl rounded-3xl p-8 max-w-md w-full my-auto">
-            <h3 className="text-xl font-bold text-slate-800 mb-2">
-              {confirmMode === 'major' ? "Major Changes Detected" : "Update Trip"}
+        <div className="absolute inset-0 bg-white/90 backdrop-blur-md z-30 flex items-center justify-center p-8 rounded-[2rem]">
+          <div className="bg-white p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-borderLight max-w-sm w-full text-center transform transition-all animate-fade-in-up">
+            <h3 className="text-xl font-bold text-textPrimary mb-3 flex justify-center items-center gap-2">
+              <AlertCircle className="text-primaryBlue" size={24} />
+              Wait a second!
             </h3>
-            <p className="text-slate-500 mb-8 text-sm">
+            <p className="text-textSecondary mb-8 text-sm">
               {confirmMode === 'major' 
                 ? "This will start a new trip and clear the current chat. Do you want to continue?" 
                 : "Update current trip or create a new trip?"}
@@ -136,22 +159,22 @@ export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', 
             <div className="flex flex-col gap-3">
               {confirmMode === 'major' ? (
                 <>
-                  <button onClick={() => performSubmit('new')} className="w-full py-3 bg-blue-500 text-white font-semibold flex-1 rounded-xl shadow-lg hover:bg-blue-600 transition-all">
+                  <button onClick={() => performSubmit('new')} className="w-full py-3.5 bg-primaryBlue text-white font-bold rounded-2xl shadow-[0_8px_20px_rgba(79,142,247,0.25)] hover:shadow-[0_12px_25px_rgba(79,142,247,0.35)] hover:-translate-y-0.5 transition-all">
                     Yes, Create New Trip
                   </button>
-                  <button onClick={() => setConfirmMode(null)} className="w-full py-3 bg-slate-100 text-slate-700 font-semibold flex-1 rounded-xl hover:bg-slate-200 transition-all">
+                  <button onClick={() => setConfirmMode(null)} className="w-full py-3.5 bg-mainBg text-textPrimary font-bold rounded-2xl hover:bg-slate-100 transition-all">
                     Cancel
                   </button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => performSubmit('update')} className="w-full py-3 bg-gradient-to-r from-pastelPurple to-pastelPink hover:from-pink-300 hover:to-pink-400 text-slate-800 font-semibold flex-1 rounded-xl shadow-lg transition-all">
+                  <button onClick={() => performSubmit('update')} className="w-full py-3.5 bg-gradient-to-r from-mintGreen to-teal-400 hover:from-teal-400 hover:to-teal-500 text-white font-bold rounded-2xl shadow-[0_8px_20px_rgba(110,211,177,0.3)] hover:-translate-y-0.5 transition-all">
                     Update Current Trip
                   </button>
-                  <button onClick={() => performSubmit('new')} className="w-full py-3 bg-blue-500 text-white font-semibold flex-1 rounded-xl hover:bg-blue-600 transition-all shadow-md">
+                  <button onClick={() => performSubmit('new')} className="w-full py-3.5 bg-primaryBlue text-white font-bold rounded-2xl shadow-[0_8px_20px_rgba(79,142,247,0.25)] hover:shadow-[0_12px_25px_rgba(79,142,247,0.35)] hover:-translate-y-0.5 transition-all">
                     Create New Trip
                   </button>
-                  <button onClick={() => setConfirmMode(null)} className="w-full mt-2 py-3 bg-white border border-slate-200 text-slate-500 font-semibold flex-1 rounded-xl hover:bg-slate-50 transition-all">
+                  <button onClick={() => setConfirmMode(null)} className="w-full mt-2 py-3.5 bg-white border border-borderLight text-textSecondary font-bold rounded-2xl hover:bg-mainBg transition-all">
                     Cancel
                   </button>
                 </>
@@ -161,21 +184,20 @@ export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', 
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-10">
         <div className="flex-1 text-center">
-          <h2 className="text-3xl font-bold text-slate-800 flex items-center justify-center gap-3">
-            <Plane className="text-blue-500" size={32} />
+          <h2 className="text-3xl font-extrabold text-textPrimary flex items-center justify-center gap-3 tracking-tight">
             {mode === 'edit' ? 'Edit Your Trip' : 'Plan Your Dream Trip'}
           </h2>
-          <p className="text-slate-500 mt-2">
-            {mode === 'edit' ? 'Update your preferences below.' : 'Let our AI craft the perfect itinerary for you.'}
+          <p className="text-textSecondary mt-2 font-medium">
+            {mode === 'edit' ? 'Update your preferences below.' : 'Share your preferences to get started.'}
           </p>
         </div>
         {mode === 'edit' && onCancel && (
           <button 
             type="button" 
             onClick={onCancel}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors absolute top-6 right-6"
+            className="p-2 text-textSecondary hover:text-textPrimary hover:bg-mainBg rounded-full transition-colors absolute top-8 right-8"
             title="Cancel"
           >
             <X size={24} />
@@ -191,165 +213,183 @@ export function TravelForm({ onSubmit, isLoading, initialData, mode = 'create', 
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8 relative">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <MapPin size={16} className="text-pastelBlue" />
+            <label className="text-sm font-bold text-textPrimary tracking-wide flex items-center gap-2">
               Destination
             </label>
-            <input
-              type="text"
-              name="destination"
-              value={formData.destination}
-              onChange={handleChange}
-              placeholder="e.g. Paris, France"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-pastelBlue transition-all"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <Calendar size={16} className="text-pastelGreen" />
-              Days
-            </label>
-            <input
-              type="number"
-              name="days"
-              value={formData.days}
-              onChange={handleChange}
-              min="1"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-pastelGreen transition-all"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <Users size={16} className="text-pastelPink" />
-              Adults & Children
-            </label>
-            <div className="flex gap-2">
-               <input
-                type="number"
-                name="adults"
-                value={formData.adults}
-                onChange={handleChange}
-                min="0"
-                placeholder="Adults"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-pastelPink transition-all"
-                required
-              />
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-primaryBlue text-textSecondary">
+                <MapPin size={20} />
+              </div>
               <input
-                type="number"
-                name="children"
-                value={formData.children}
+                type="text"
+                name="destination"
+                value={formData.destination}
                 onChange={handleChange}
-                min="0"
-                placeholder="Children"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-pastelPink transition-all"
+                placeholder="e.g. Paris, France"
+                className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-primaryBlue/15 focus:border-primaryBlue/50 transition-all font-medium text-textPrimary hover:border-blue-200"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <Users size={16} className="text-pastelPink" />
-              Total People
+            <label className="text-sm font-bold text-textPrimary tracking-wide flex items-center gap-2">
+              Duration (Days)
             </label>
-            <input
-              type="number"
-              name="people"
-              value={formData.people}
-              onChange={handleChange}
-              min="1"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-pastelPink transition-all"
-              readOnly
-              onClick={() => setError("Total people is evaluated from Adults + Children")}
-            />
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-mintGreen text-textSecondary">
+                <Calendar size={20} />
+              </div>
+              <input
+                type="number"
+                name="days"
+                value={formData.days === '' as unknown as number ? '' : formData.days}
+                onChange={handleChange}
+                min="1"
+                placeholder="e.g. 5"
+                className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-mintGreen/15 focus:border-mintGreen/50 transition-all font-medium text-textPrimary hover:border-green-200"
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <DollarSign size={16} className="text-green-500" />
-              Budget & Currency
+            <label className="text-sm font-bold text-textPrimary tracking-wide flex items-center gap-2">
+              Travelers
             </label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                name="budget"
-                value={formData.budget}
-                onChange={handleChange}
-                min="1"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-green-300 transition-all"
-                required
-              />
+            <div className="flex gap-3">
+               <div className="relative group flex-1">
+                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-softCoral text-textSecondary">
+                   <Users size={20} />
+                 </div>
+                 <input
+                  type="number"
+                  name="adults"
+                  value={formData.adults === '' as unknown as number ? '' : formData.adults}
+                  onChange={handleChange}
+                  min="0"
+                  placeholder="Adults"
+                  className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-softCoral/15 focus:border-softCoral/50 transition-all font-medium text-textPrimary hover:border-red-200"
+                  required
+                />
+              </div>
+              <div className="relative group flex-1">
+                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-softCoral text-textSecondary">
+                   <Users size={20} className="scale-75" />
+                 </div>
+                 <input
+                  type="number"
+                  name="children"
+                  value={formData.children === '' as unknown as number ? '' : formData.children}
+                  onChange={handleChange}
+                  min="0"
+                  placeholder="Children"
+                  className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-softCoral/15 focus:border-softCoral/50 transition-all font-medium text-textPrimary hover:border-red-200"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-start justify-center p-4 bg-lightBlue/50 rounded-2xl border border-lightBlue">
+            <span className="text-[10px] font-bold text-primaryBlue/70 uppercase tracking-widest mb-1">Total Trip Size</span>
+            <div className="flex items-center gap-2">
+              <Users size={18} className="text-primaryBlue" />
+              <span className="text-xl font-extrabold text-blue-900 tracking-tight">{formData.people || 0} People</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-textPrimary tracking-wide flex items-center gap-2">
+              Total Budget & Currency
+            </label>
+            <div className="flex gap-3">
+              <div className="relative group flex-[2]">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-mintGreen text-textSecondary">
+                  <DollarSign size={20} />
+                </div>
+                <input
+                  type="number"
+                  name="budget"
+                  value={formData.budget === '' as unknown as number ? '' : formData.budget}
+                  onChange={handleChange}
+                  min="1"
+                  placeholder="e.g. 1500"
+                  className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-mintGreen/15 focus:border-mintGreen/50 transition-all font-medium text-textPrimary hover:border-green-200"
+                  required
+                />
+              </div>
               <select
                 name="currency"
                 value={formData.currency}
                 onChange={handleChange}
-                className="w-32 px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-green-300 transition-all cursor-pointer"
+                className="flex-1 px-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-mintGreen/15 focus:border-mintGreen/50 transition-all cursor-pointer font-bold text-textPrimary hover:border-green-200"
               >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="INR">INR</option>
-                <option value="JPY">JPY</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="INR">INR (₹)</option>
+                <option value="JPY">JPY (¥)</option>
               </select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-              <Plane size={16} className="text-pastelPurple" />
-              Travel Type
+            <label className="text-sm font-bold text-textPrimary tracking-wide flex items-center gap-2">
+              Travel Style
             </label>
-            <select
-              name="travel_type"
-              value={formData.travel_type}
-              onChange={handleChange}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:outline-none focus:ring-2 focus:ring-pastelPurple transition-all cursor-pointer"
-            >
-              <option value="Luxury">Luxury</option>
-              <option value="Budget-friendly">Budget-friendly</option>
-            </select>
+            <div className="relative group flex-[2]">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-primaryBlue text-textSecondary">
+                  <Plane size={20} />
+                </div>
+              <select
+                name="travel_type"
+                value={formData.travel_type}
+                onChange={handleChange}
+                className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-borderLight bg-mainBg focus:bg-white focus:outline-none focus:ring-4 focus:ring-primaryBlue/15 focus:border-primaryBlue/50 transition-all cursor-pointer font-bold text-textPrimary hover:border-blue-200"
+              >
+                <option value="Luxury">Luxury & Premium</option>
+                <option value="Budget-friendly">Budget-Friendly</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-4 mt-6">
+        <div className="flex gap-4 mt-8 pt-4 border-t border-borderLight">
           {mode === 'edit' && onCancel && (
             <button
               type="button"
               onClick={onCancel}
               disabled={isButtonDisabled}
-              className="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-4 rounded-xl shadow-sm border border-slate-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              className="flex-1 bg-mainBg hover:bg-borderLight text-textSecondary font-bold py-4 rounded-2xl transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Cancel
+              Cancel Edit
             </button>
           )}
 
           <button
             type="submit"
             disabled={isButtonDisabled}
-            className={`flex-[2] text-white font-semibold py-4 rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${
+            className={`flex-[2] text-white font-bold py-4 rounded-2xl transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5 ${
               mode === 'edit' 
-                ? 'bg-gradient-to-r from-pastelPurple to-pastelPink hover:from-pink-300 hover:to-pink-400 text-slate-800' 
-                : 'bg-blue-500 hover:bg-blue-600 shadow-blue-200'
+                ? 'bg-gradient-to-r from-mintGreen to-teal-400 hover:from-teal-400 hover:to-teal-500 shadow-[0_10px_25px_rgba(110,211,177,0.25)] hover:shadow-[0_15px_35px_rgba(110,211,177,0.35)]'
+                : 'bg-gradient-to-r from-primaryBlue to-mintGreen hover:from-blue-500 hover:to-teal-400 shadow-[0_10px_25px_rgba(79,142,247,0.25)] hover:shadow-[0_15px_35px_rgba(79,142,247,0.35)]'
             }`}
           >
             {isButtonDisabled ? (
               <>
                 <div className="animate-spin h-5 w-5 border-2 border-current border-t-transparent rounded-full" />
-                {isValidating ? 'Validating...' : 'Generating...'}
+                {isValidating ? 'Validating...' : 'Generating Planner...'}
               </>
             ) : mode === 'edit' ? (
               <>
-                <RefreshCw size={18} />
+                <RefreshCw size={20} strokeWidth={2.5} />
                 Regenerate Itinerary
               </>
             ) : (
-              'Generate Itinerary'
+              'Generate Itinerary ✨'
             )}
           </button>
         </div>

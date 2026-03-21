@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, Sparkles } from 'lucide-react';
 import { TravelAPI } from '../api';
+import { ItineraryDisplay } from './ItineraryDisplay';
 
 interface Message {
   role: string;
@@ -32,6 +33,38 @@ export function ChatInterface({ chatId, initialItinerary, initialMessages }: Cha
     scrollToBottom();
   }, [messages]);
 
+  const tryParseJSON = (str: string) => {
+    try {
+      // First attempt: direct parse
+      const obj = JSON.parse(str);
+      if (obj && typeof obj === 'object' && obj.day_wise_plan) return obj;
+    } catch (e) {
+      // Deep cleanup for local LLM artifacts
+      try {
+        // 1. Find the largest block between { and }
+        const startIdx = str.indexOf('{');
+        const endIdx = str.lastIndexOf('}');
+        
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+           let jsonString = str.substring(startIdx, endIdx + 1);
+           
+           // 2. Remove common markdown artifacts that break JSON
+           jsonString = jsonString
+             .replace(/```json/g, '')
+             .replace(/```/g, '')
+             .replace(/^\s*\*\s*/gm, '') // Remove markdown bullet points
+             .replace(/\n\s*\n/g, '\n'); // Remove double newlines
+             
+           const obj = JSON.parse(jsonString);
+           if (obj && typeof obj === 'object' && obj.day_wise_plan) return obj;
+        }
+      } catch (innerE) {
+        return null; 
+      }
+    }
+    return null;
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -52,51 +85,56 @@ export function ChatInterface({ chatId, initialItinerary, initialMessages }: Cha
   };
 
   return (
-    <div className="flex flex-col h-full bg-white/70 backdrop-blur-md rounded-3xl shadow-xl overflow-hidden border border-white">
+    <div className="flex flex-col h-full bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.06)] overflow-hidden border border-borderLight">
       {/* Header */}
-      <div className="bg-pastelBlue/30 p-4 border-b border-pastelBlue/50 text-center">
-        <h3 className="font-semibold text-slate-800 text-lg">Trip Assistant</h3>
-        <p className="text-xs text-slate-500">I can only help with questions about your current itinerary.</p>
+      <div className="bg-mainBg/50 backdrop-blur-sm p-5 border-b border-borderLight text-center flex items-center justify-center gap-2">
+        <Sparkles size={20} className="text-primaryBlue" />
+        <div>
+          <h3 className="font-extrabold text-textPrimary text-lg tracking-tight">Expert Trip Assistant</h3>
+        </div>
       </div>
 
       {/* Messages / Itinerary Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'ai' && (
-              <div className="w-8 h-8 rounded-full bg-pastelBlue flex items-center justify-center flex-shrink-0 text-blue-600 mt-1">
-                <Bot size={18} />
+      <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-mainBg/30 hidden-scrollbar">
+        {messages.map((msg, idx) => {
+          const itineraryData = msg.role === 'ai' ? tryParseJSON(msg.content) : null;
+          
+          return (
+            <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'ai' && !itineraryData && (
+                <div className="w-9 h-9 rounded-full bg-white border border-borderLight shadow-sm flex items-center justify-center flex-shrink-0 text-primaryBlue mt-1">
+                   <Bot size={20} strokeWidth={2.5} />
+                </div>
+              )}
+              
+              <div 
+                className={`${itineraryData ? 'w-full' : 'max-w-[85%]'} rounded-2xl ${
+                  msg.role === 'user' 
+                    ? 'bg-lightBlue text-primaryBlue font-medium px-6 py-4 rounded-br-sm' 
+                    : itineraryData 
+                      ? '' 
+                      : 'bg-white text-textPrimary p-6 shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-borderLight rounded-bl-sm'
+                } prose prose-p:leading-[1.7] text-[15px] max-w-none`}
+              >
+                {itineraryData ? (
+                  <ItineraryDisplay data={itineraryData} />
+                ) : (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                )}
               </div>
-            )}
-            
-            <div 
-              className={`max-w-[75%] rounded-2xl p-4 prose prose-sm ${
-                msg.role === 'user' 
-                  ? 'bg-blue-500 text-white prose-invert' 
-                  : 'bg-white text-slate-800 shadow-sm border border-slate-100'
-              }`}
-            >
-              {/* Force markdown links and lists to display correctly */}
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
             </div>
-
-            {msg.role === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-slate-600 mt-1">
-                <User size={18} />
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {isLoading && (
-          <div className="flex gap-4 justify-start">
-             <div className="w-8 h-8 rounded-full bg-pastelBlue flex items-center justify-center flex-shrink-0 text-blue-600">
-                <Bot size={18} />
+          <div className="flex gap-3 justify-start items-end animate-fade-in-up">
+             <div className="w-9 h-9 rounded-full bg-white border border-borderLight shadow-sm flex items-center justify-center flex-shrink-0 text-primaryBlue">
+                <Bot size={20} strokeWidth={2.5} />
              </div>
-             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <div className="flex gap-1 items-center h-4">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+             <div className="bg-white px-5 py-4 rounded-2xl rounded-bl-sm shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-borderLight">
+                <div className="flex gap-1.5 items-center h-4">
+                  <div className="w-2 h-2 bg-primaryBlue/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-primaryBlue/70 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-primaryBlue rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
              </div>
           </div>
@@ -105,22 +143,22 @@ export function ChatInterface({ chatId, initialItinerary, initialMessages }: Cha
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t border-slate-100">
-        <form onSubmit={handleSend} className="flex gap-2">
+      <div className="p-6 bg-white border-t border-borderLight rounded-b-[2rem]">
+        <form onSubmit={handleSend} className="relative flex items-center w-full">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about your trip..."
-            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pastelBlue"
+            className="w-full bg-mainBg border border-borderLight rounded-full pl-8 pr-20 py-5 font-semibold text-[15px] text-textPrimary placeholder-textSecondary focus:bg-white focus:outline-none focus:ring-4 focus:ring-primaryBlue/15 focus:border-primaryBlue/50 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-xl px-5 flex items-center justify-center transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-primaryBlue hover:bg-[#3d7ae6] disabled:bg-primaryBlue/40 text-white rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_4px_12px_rgba(79,142,247,0.3)] disabled:shadow-none"
           >
-            <Send size={18} />
+            <Send size={20} className={`transform transition-transform ${input.trim() ? '-mt-0.5 ml-0.5' : ''}`} />
           </button>
         </form>
       </div>

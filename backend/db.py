@@ -1,5 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Text, ForeignKey, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from datetime import datetime
 import uuid
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./travel_planner.db"
@@ -16,6 +17,7 @@ class Chat(Base):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, default="New Trip")
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
     itinerary_data = relationship("ItineraryData", back_populates="chat", uselist=False, cascade="all, delete-orphan")
@@ -40,7 +42,7 @@ class ItineraryData(Base):
     people = Column(Integer)
     adults = Column(Integer)
     children = Column(Integer)
-    budget = Column(Integer)
+    budget = Column(Float)
     currency = Column(String, default="USD")
     travel_type = Column(String)
     

@@ -47,6 +47,17 @@ async def generate_itinerary(request: TripRequest, db: Session = Depends(get_db)
     estimated_cost = final_state.get('estimated_cost', 0.0)
     final_itinerary = final_state.get('final_itinerary', "")
     
+    # Cleanup JSON if LLM included markdown blocks or conversational text
+    import re
+    # Try to find the first '{' and the last '}' to extract the core JSON
+    json_match = re.search(r'(\{.*\})', final_itinerary, re.DOTALL)
+    if json_match:
+        final_itinerary = json_match.group(1).strip()
+    elif "```json" in final_itinerary:
+        final_itinerary = final_itinerary.split("```json")[1].split("```")[0].strip()
+    elif "```" in final_itinerary:
+        final_itinerary = final_itinerary.split("```")[1].split("```")[0].strip()
+    
     # Create new Chat
     new_chat_id = str(uuid.uuid4())
     chat_title = f"{request.days}-Day Trip to {request.destination}"
@@ -114,6 +125,17 @@ async def update_itinerary(chat_id: str, request: TripRequest, db: Session = Dep
     budget_sufficient = final_state.get('budget_sufficient', False)
     estimated_cost = final_state.get('estimated_cost', 0.0)
     final_itinerary = final_state.get('final_itinerary', "")
+
+    # Cleanup JSON if LLM included markdown blocks or conversational text
+    import re
+    # Try to find the first '{' and the last '}' to extract the core JSON
+    json_match = re.search(r'(\{.*\})', final_itinerary, re.DOTALL)
+    if json_match:
+        final_itinerary = json_match.group(1).strip()
+    elif "```json" in final_itinerary:
+        final_itinerary = final_itinerary.split("```json")[1].split("```")[0].strip()
+    elif "```" in final_itinerary:
+        final_itinerary = final_itinerary.split("```")[1].split("```")[0].strip()
     
     # Update Itinerary Data
     itinerary_data.destination = request.destination
@@ -173,7 +195,7 @@ async def chat_interaction(chat_id: str, request: ChatMessageRequest, db: Sessio
     # Generate response from LangBridge/Agent
     ai_response_content = chat_agent(
         messages=message_history,
-        itinerary=itinerary.final_itinerary,
+        itinerary_json_str=itinerary.final_itinerary,
         destination=itinerary.destination
     )
     
@@ -186,7 +208,7 @@ async def chat_interaction(chat_id: str, request: ChatMessageRequest, db: Sessio
 
 @app.get("/api/v1/chats")
 async def get_chats(db: Session = Depends(get_db)):
-    chats = db.query(Chat).order_by(Chat.id.desc()).all()
+    chats = db.query(Chat).order_by(Chat.created_at.desc()).all()
     return [{"id": c.id, "title": c.title} for c in chats]
 
 @app.get("/api/v1/chat/{chat_id}")
@@ -204,6 +226,9 @@ async def get_chat_details(chat_id: str, db: Session = Depends(get_db)):
         "itinerary_data": {
             "destination": itinerary.destination if itinerary else None,
             "days": itinerary.days if itinerary else None,
+            "people": itinerary.people if itinerary else None,
+            "adults": itinerary.adults if itinerary else None,
+            "children": itinerary.children if itinerary else None,
             "budget": itinerary.budget if itinerary else None,
             "currency": itinerary.currency if itinerary else None,
             "travel_type": itinerary.travel_type if itinerary else None,
