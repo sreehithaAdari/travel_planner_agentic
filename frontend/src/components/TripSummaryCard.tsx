@@ -15,7 +15,7 @@ export function TripSummaryCard({ data, onEdit }: TripSummaryCardProps) {
   const moodText = isFamily ? 'Family/Group' : isLuxury ? 'Relaxed' : 'Adventure';
 
   return (
-    <div className="w-full bg-white rounded-full px-8 py-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-borderLight mb-8 flex flex-col md:flex-row items-center justify-between gap-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+    <div className="w-full bg-white/95 backdrop-blur-xl px-10 py-5 border-b border-borderLight flex flex-col xl:flex-row xl:items-center justify-between gap-4 flex-shrink-0 relative z-20 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
       <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
         <div className="flex items-center gap-2.5 text-textPrimary">
           <MapPin className="text-primaryBlue" size={20} strokeWidth={2.5} />

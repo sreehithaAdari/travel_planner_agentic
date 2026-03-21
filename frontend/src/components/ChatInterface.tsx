@@ -85,15 +85,7 @@ export function ChatInterface({ chatId, initialItinerary, initialMessages }: Cha
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.06)] overflow-hidden border border-borderLight">
-      {/* Header */}
-      <div className="bg-mainBg/50 backdrop-blur-sm p-5 border-b border-borderLight text-center flex items-center justify-center gap-2">
-        <Sparkles size={20} className="text-primaryBlue" />
-        <div>
-          <h3 className="font-extrabold text-textPrimary text-lg tracking-tight">Expert Trip Assistant</h3>
-        </div>
-      </div>
-
+    <div className="flex flex-col flex-1 bg-white overflow-hidden w-full h-full">
       {/* Messages / Itinerary Area */}
       <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-mainBg/30 hidden-scrollbar">
         {messages.map((msg, idx) => {
@@ -143,7 +135,7 @@ export function ChatInterface({ chatId, initialItinerary, initialMessages }: Cha
       </div>
 
       {/* Input Area */}
-      <div className="p-6 bg-white border-t border-borderLight rounded-b-[2rem]">
+      <div className="p-6 bg-white border-t border-borderLight">
         <form onSubmit={handleSend} className="relative flex items-center w-full">
           <input
             type="text"

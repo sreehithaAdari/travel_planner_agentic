@@ -145,7 +145,7 @@ function App() {
           onDeleteChat={handleDeleteChat}
         />
         
-        <main className="flex-1 overflow-y-auto flex flex-col items-center justify-start pt-12 lg:pt-16 pb-12 px-6 lg:px-12 xl:px-20">
+        <main className={`flex-1 overflow-y-auto flex flex-col items-center justify-start ${activeView === 'form' ? 'pt-12 lg:pt-16 pb-12 px-6 lg:px-12 xl:px-20' : ''}`}>
           {activeView === 'form' ? (
             <div className="w-full max-w-2xl flex flex-col items-center justify-center transition-all duration-500">
               {!isGenerating && (
@@ -169,7 +169,7 @@ function App() {
             </div>
           ) : (
             chatDetails && (
-              <div className="w-full max-w-[1400px] h-full flex flex-col">
+              <div className="w-full h-full flex flex-col">
                 {isEditingTrip ? (
                   <TravelForm 
                     initialData={tripData} 
